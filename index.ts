@@ -103,64 +103,65 @@ async function checkForNewItems() {
 
         console.log(`Found ${items.length} new items`);
 
-        for (const item of items) {
-            await postToDiscord(item);
-            await Bun.sleep(500); // Rate limit
-        }
+
+        await postToDiscord(items);
     } catch (e) {
         console.error("Error checking items:", e);
     }
 }
 
-async function postToDiscord(item: FeedItem) {
+async function postToDiscord(items: FeedItem[]) {
     try {
-        const feed = await getFeed(item.feed_id);
-        const feedName = feed ? feed.title : `Feed ${item.feed_id}`;
-        const feedUrl = feed?.site_url || "";
-        const iconCacheKey = feedUrl.replace(/^https?:\/\//, "");
+        const embeds = await Promise.all(items.map(createEmbed));
+        await fetch(DISCORD_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ embeds }),
+        });
 
-        const embed: any = {
-            title: item.title.slice(0, 256),
-            url: item.url,
-            description: item.summary?.slice(0, 500) || "",
-            author: {
-                name: feedName,
-                url: feedUrl,
-                icon_url: iconCache.get(iconCacheKey)?.url,
-            },
-            timestamp: item.published,
-            color: 0x5865f2,
-            footer: {
-                text: item.author || "",
-            },
-        };
-
-        if (item.images) {
-            const imageUrl = item.images.size_1?.cdn_url || item.images.original_url;
-            if (imageUrl) {
-                embed.image = { url: imageUrl };
-            }
+        for (const item of items) {
+            console.log(`Posted ${item.title} to Discord`);
         }
 
-        try {
-            await fetch(DISCORD_WEBHOOK_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ embeds: [embed] }),
-            });
-            console.log(`Posted: ${item.title}`);
-        } catch (e) {
-            console.log(`Failed to post: ${item.title}`);
-            console.error(e);
-        }
-
-        await markAsRead(item.id);
+        await markAsRead(items.map(i => i.id));
     } catch (e) {
         console.error("Error posting to Discord:", e);
     }
 }
 
-async function markAsRead(entryId: number) {
+async function createEmbed(item: FeedItem) {
+    const feed = await getFeed(item.feed_id);
+    const feedName = feed ? feed.title : `Feed ${item.feed_id}`;
+    const feedUrl = feed?.site_url || "";
+    const iconCacheKey = feedUrl.replace(/^https?:\/\//, "");
+
+    const embed: any = {
+        title: item.title.slice(0, 256),
+        url: item.url,
+        description: item.summary?.slice(0, 500) || "",
+        author: {
+            name: feedName,
+            url: feedUrl,
+            icon_url: iconCache.get(iconCacheKey)?.url,
+        },
+        timestamp: item.published,
+        color: 0x5865f2,
+        footer: {
+            text: item.author || "",
+        },
+    };
+
+    if (item.images) {
+        const imageUrl = item.images.size_1?.cdn_url || item.images.original_url;
+        if (imageUrl) {
+            embed.image = { url: imageUrl };
+        }
+    }
+
+    return embed;
+}
+
+async function markAsRead(entryIds: number[]) {
     try {
         const res = await fetch("https://api.feedbin.com/v2/unread_entries.json", {
             method: "DELETE",
@@ -168,13 +169,13 @@ async function markAsRead(entryId: number) {
                 Authorization: authHeader,
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ unread_entries: [entryId] }),
+            body: JSON.stringify({ unread_entries: entryIds }),
         });
 
         if (res.ok) {
-            console.log(`Marked entry ${entryId} as read`);
+            console.log(`Marked entry ${entryIds.join(", ")} as read`);
         } else {
-            console.error(`Failed to mark entry ${entryId} as read: ${res.status}`);
+            console.error(`Failed to mark entry ${entryIds.join(", ")} as read: ${res.status}`);
         }
     } catch (e) {
         console.error("Error marking as read:", e);
