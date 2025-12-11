@@ -16,9 +16,9 @@ interface FeedItem {
     feed_id: number;
     images?: {
         original_url?: string;
-        size_1?: string;
-        size_2?: string;
-        size_3?: string;
+        size_1?: {
+            cdn_url?: string;
+        }
     };
 }
 
@@ -29,7 +29,13 @@ interface Feed {
     site_url: string;
 }
 
+interface Icon {
+    host: string;
+    url: string;
+}
+
 const feedCache = new Map<number, Feed>();
+const iconCache = new Map<string, Icon>();
 
 const authHeader = `Basic ${btoa(`${FEEDBIN_USERNAME}:${FEEDBIN_PASSWORD}`)}`;
 
@@ -110,6 +116,8 @@ async function postToDiscord(item: FeedItem) {
     try {
         const feed = await getFeed(item.feed_id);
         const feedName = feed ? feed.title : `Feed ${item.feed_id}`;
+        const feedUrl = feed?.site_url || "";
+        const iconCacheKey = feedUrl.replace(/^https?:\/\//, "");
 
         const embed: any = {
             title: item.title.slice(0, 256),
@@ -117,6 +125,8 @@ async function postToDiscord(item: FeedItem) {
             description: item.summary?.slice(0, 500) || "",
             author: {
                 name: feedName,
+                url: feedUrl,
+                icon_url: iconCache.get(iconCacheKey)?.url,
             },
             timestamp: item.published,
             color: 0x5865f2,
@@ -126,19 +136,23 @@ async function postToDiscord(item: FeedItem) {
         };
 
         if (item.images) {
-            const imageUrl = item.images.original_url || item.images.size_3 || item.images.size_2 || item.images.size_1;
+            const imageUrl = item.images.size_1?.cdn_url || item.images.original_url;
             if (imageUrl) {
                 embed.image = { url: imageUrl };
             }
         }
 
-        await fetch(DISCORD_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ embeds: [embed] }),
-        });
-
-        console.log(`Posted: ${item.title}`);
+        try {
+            await fetch(DISCORD_WEBHOOK_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ embeds: [embed] }),
+            });
+            console.log(`Posted: ${item.title}`);
+        } catch (e) {
+            console.log(`Failed to post: ${item.title}`);
+            console.error(e);
+        }
 
         await markAsRead(item.id);
     } catch (e) {
@@ -167,6 +181,19 @@ async function markAsRead(entryId: number) {
     }
 }
 
+async function getIcons() {
+    const res = await fetch(`https://api.feedbin.com/v2/icons.json`, {
+        headers: { Authorization: authHeader },
+    });
+
+    if (res.ok) {
+        const icons = await res.json() as Icon[];
+        for (const icon of icons) {
+            iconCache.set(icon.host, icon);
+        }
+    }
+}
+
 async function main() {
     if (!FEEDBIN_USERNAME || !FEEDBIN_PASSWORD) {
         console.error("Error: FEEDBIN_USERNAME and FEEDBIN_PASSWORD must be set");
@@ -179,6 +206,8 @@ async function main() {
     }
 
     console.log("Starting Feedbin to Discord bot...");
+    console.log("Getting icons...");
+    await getIcons();
     console.log(`Checking every ${CHECK_INTERVAL / 1000} seconds`);
 
     await checkForNewItems();
