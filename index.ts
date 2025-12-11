@@ -68,7 +68,7 @@ async function checkForNewItems() {
             headers["If-Modified-Since"] = lastModified;
         }
 
-        const res = await fetch("https://api.feedbin.com/v2/entries.json?read=false&include_original=true&per_page=50", {
+        const res = await fetch("https://api.feedbin.com/v2/entries.json?read=false&include_original=true&mode=extended&per_page=50", {
             headers,
         });
 
