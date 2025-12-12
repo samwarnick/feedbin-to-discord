@@ -1,7 +1,7 @@
 const FEEDBIN_USERNAME = Bun.env.FEEDBIN_USERNAME || "";
 const FEEDBIN_PASSWORD = Bun.env.FEEDBIN_PASSWORD || "";
 const DISCORD_WEBHOOK_URL = Bun.env.DISCORD_WEBHOOK_URL || "";
-const CHECK_INTERVAL = 2 * 60 * 1000; // 5 minutes
+const CHECK_INTERVAL = 2 * 60 * 1000; // 2 minutes
 
 let etag: string | null = null;
 let lastModified: string | null = null;
