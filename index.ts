@@ -136,7 +136,7 @@ async function createEmbed(item: FeedItem) {
     const iconCacheKey = feedUrl.replace(/^https?:\/\//, "");
 
     const embed: any = {
-        title: item.title.slice(0, 256),
+        title: item.title?.slice(0, 256),
         url: item.url,
         description: item.summary?.slice(0, 500) || "",
         author: {
