@@ -10,7 +10,6 @@ export async function createEmbed(item: FeedItem): Promise<EmbedBuilder> {
     const icon = getIconForHost(iconCacheKey);
 
     const embed = new EmbedBuilder()
-        .setTitle(item.title?.slice(0, 256) || "Untitled")
         .setURL(item.url)
         .setAuthor({
             name: feedName,
@@ -19,6 +18,10 @@ export async function createEmbed(item: FeedItem): Promise<EmbedBuilder> {
         })
         .setTimestamp(new Date(item.published))
         .setColor(0x5865f2);
+
+    if (item.title) {
+        embed.setTitle(item.title.slice(0, 256));
+    }
 
     if (item.summary) {
         embed.setDescription(item.summary.slice(0, 500));
