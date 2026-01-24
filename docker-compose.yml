@@ -1,0 +1,6 @@
+services:
+  app:
+    build: .
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "bun"]
+      interval: 30s
